@@ -36,6 +36,7 @@ function pipeFailureApi(): { api: Win32ProcessBindings; closed: bigint[]; closeH
       return 1
     }),
     setHandleInformation: vi.fn(() => 1),
+    getConsoleCP: vi.fn(() => 65001),
     createProcessAsUserW: vi.fn(() => 0),
     getLastError: vi.fn(() => 5), // ERROR_ACCESS_DENIED: the failure the branch reports
     closeHandle,
@@ -94,6 +95,11 @@ function pipeOkApi(overrides: Partial<Win32ProcessBindings> = {}): {
     getLastError: vi.fn(() => 5),
     closeHandle,
     formatMessageW: vi.fn(() => 0),
+    setStdHandle: vi.fn(() => 1),
+    getConsoleCP: vi.fn(() => 65001),
+    attachConsole: vi.fn(() => 1),
+    setConsoleCtrlHandler: vi.fn(() => 1),
+    sleep: vi.fn(),
     ...overrides,
   } as Win32ProcessBindings
   return { api, closed, closeHandle }
@@ -194,6 +200,11 @@ describe('spawnInheritedJobProcess failure paths', () => {
       getLastError: vi.fn(() => 5),
       closeHandle,
       formatMessageW: vi.fn(() => 0),
+      setStdHandle: vi.fn(() => 1),
+      getConsoleCP: vi.fn(() => 65001),
+      attachConsole: vi.fn(() => 1),
+      setConsoleCtrlHandler: vi.fn(() => 1),
+      sleep: vi.fn(),
       ...overrides,
     } as Win32ProcessBindings
     return { api, closed, closeHandle }

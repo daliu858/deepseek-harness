@@ -121,6 +121,11 @@ export interface Win32ProcessBindings {
   terminateProcess(process: NativePtr, exitCode: number): number
   terminateJobObject(job: NativePtr, exitCode: number): number
   getStdHandle(stdHandle: number): NativePtr
+  setStdHandle(stdHandle: number, handle: NativePtr): number
+  getConsoleCP(): number
+  attachConsole(processId: number): number
+  setConsoleCtrlHandler(handler: null, add: number): number
+  sleep(milliseconds: number): void
 }
 
 /** Generic Win32 calls plus Node's libuv descriptor-to-handle bridge. */
@@ -308,6 +313,11 @@ function bindings(): CurrentTokenProcessBindings {
     terminateProcess: bind(kernel32, 'TerminateProcess', 'int', [PVOID, 'uint32']),
     terminateJobObject: bind(kernel32, 'TerminateJobObject', 'int', [PVOID, 'uint32']),
     getStdHandle: bind(kernel32, 'GetStdHandle', PVOID, ['int']),
+    setStdHandle: bind(kernel32, 'SetStdHandle', 'int', ['int', PVOID]),
+    getConsoleCP: bind(kernel32, 'GetConsoleCP', 'uint32', []),
+    attachConsole: bind(kernel32, 'AttachConsole', 'int', ['uint32']),
+    setConsoleCtrlHandler: bind(kernel32, 'SetConsoleCtrlHandler', 'int', [PVOID, 'int']),
+    sleep: bind(kernel32, 'Sleep', 'void', ['uint32']),
     uvGetOsfhandle: node.func('uv_get_osfhandle', PVOID, ['int']),
   } as unknown as CurrentTokenProcessBindings
   return cached

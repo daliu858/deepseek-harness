@@ -173,6 +173,63 @@ function closeAllOwned(api: Win32ProcessBindings, owned: Set<NativePtr>): void {
   owned.clear()
 }
 
+const HEADLESS_CONSOLE_ATTACH_ATTEMPTS = 200
+const HEADLESS_CONSOLE_POLL_DELAY_MS = 1
+
+function ensureHeadlessConsole(api: Win32ProcessBindings): void {
+  if (api.getConsoleCP() !== 0) return
+  const savedIn = api.getStdHandle(abi.STD_INPUT_HANDLE)
+  const savedOut = api.getStdHandle(abi.STD_OUTPUT_HANDLE)
+  const savedErr = api.getStdHandle(abi.STD_ERROR_HANDLE)
+  const startupInfo = allocStartupInfo()
+  let processInfo: NativePtr | undefined
+  try {
+    encodeStartupInfo(startupInfo, {
+      cb: abi.STARTUPINFOW_SIZE,
+      dwFlags: abi.STARTF_USESHOWWINDOW,
+      wShowWindow: abi.SW_HIDE,
+      hStdInput: savedIn,
+      hStdOutput: savedOut,
+      hStdError: savedErr,
+    })
+    processInfo = allocProcessInfo()
+    const systemRoot = process.env.SystemRoot ?? 'C:\\Windows'
+    const cmdExe = `${systemRoot}\\System32\\cmd.exe`
+    if (api.createProcessW(
+      cmdExe,
+      `"${cmdExe}" /d /q /k`,
+      null,
+      null,
+      0,
+      abi.CREATE_NO_WINDOW,
+      null,
+      null,
+      startupInfo,
+      processInfo,
+    ) !== 0) {
+      const info = decodeProcessInfo(processInfo)
+      for (let attempt = 0; attempt < HEADLESS_CONSOLE_ATTACH_ATTEMPTS; attempt++) {
+        if (api.attachConsole(info.dwProcessId) !== 0 || api.getLastError() === abi.ERROR_ACCESS_DENIED) {
+          break
+        }
+        api.sleep(HEADLESS_CONSOLE_POLL_DELAY_MS)
+      }
+      if (info.hProcess !== null) {
+        api.terminateProcess(info.hProcess, 0)
+        api.closeHandle(info.hProcess)
+      }
+      closeBestEffort(api, info.hThread)
+    }
+  } finally {
+    freeNative(processInfo)
+    freeNative(startupInfo)
+    if (!isNullPtr(savedIn)) api.setStdHandle(abi.STD_INPUT_HANDLE, savedIn)
+    if (!isNullPtr(savedOut)) api.setStdHandle(abi.STD_OUTPUT_HANDLE, savedOut)
+    if (!isNullPtr(savedErr)) api.setStdHandle(abi.STD_ERROR_HANDLE, savedErr)
+    api.setConsoleCtrlHandler(null, 1)
+  }
+}
+
 function createRestrictedProcess(
   api: Win32ProcessBindings,
   options: RestrictedProcessSpawnOptions,
@@ -181,6 +238,7 @@ function createRestrictedProcess(
   startupInfo: NativePtr,
   processInfo: NativePtr,
 ): number {
+  ensureHeadlessConsole(api)
   // The sandbox mutates its process environment before this call. Passing an
   // explicit block through Koffi makes CreateProcessAsUserW reject the request
   // with ERROR_INVALID_PARAMETER, so lpEnvironment remains NULL.
@@ -564,7 +622,7 @@ export function spawnCurrentTokenJobProcess(
       null,
       null,
       1,
-      abi.CREATE_SUSPENDED | abi.CREATE_UNICODE_ENVIRONMENT,
+      abi.CREATE_SUSPENDED | abi.CREATE_UNICODE_ENVIRONMENT | abi.CREATE_NO_WINDOW,
       environment,
       options.cwd,
       startupInfo,

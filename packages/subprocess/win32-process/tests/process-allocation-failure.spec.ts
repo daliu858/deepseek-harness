@@ -52,6 +52,7 @@ describe('spawnInheritedJobProcess allocation cleanup', () => {
       setInformationJobObject: vi.fn(() => 1),
       getStdHandle: vi.fn((selector: number) => BigInt(100 - selector)),
       setHandleInformation: vi.fn(() => 1),
+      getConsoleCP: vi.fn(() => 65001),
       createProcessAsUserW: vi.fn((_token, _app, _line, _pa, _ta, _inherit, _flags, _env, _cwd, _startup, info) => {
         koffi.encode(info, processInformationType(), {
           hProcess: 60n,
@@ -88,6 +89,7 @@ describe('shared process allocation cleanup', () => {
         return 1
       }),
       setHandleInformation: vi.fn(() => 1),
+      getConsoleCP: vi.fn(() => 65001),
       createProcessAsUserW: vi.fn((_token, _app, _line, _pa, _ta, _inherit, _flags, _env, _cwd, _startup, info) => {
         koffi.encode(info, processInformationType(), {
           hProcess: 60n,

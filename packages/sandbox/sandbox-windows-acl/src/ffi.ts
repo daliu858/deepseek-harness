@@ -83,7 +83,6 @@ export interface Win32Bindings extends Win32ProcessBindings {
   ): number
   getTempPathW(length: number, buffer: Buffer): number
   setEnvironmentVariableW(name: string, value: string): number
-  setConsoleCtrlHandler(handler: null, add: number): number
   createFileW(
     fileName: string,
     desiredAccess: number,
@@ -264,7 +263,6 @@ function bindings(): Win32Bindings {
     ]),
     getTempPathW: bind(kernel32, 'GetTempPathW', 'uint32', ['uint32', PVOID]),
     setEnvironmentVariableW: bind(kernel32, 'SetEnvironmentVariableW', 'int', ['str16', 'str16']),
-    setConsoleCtrlHandler: bind(kernel32, 'SetConsoleCtrlHandler', 'int', [PVOID, 'int']),
     createFileW: bind(kernel32, 'CreateFileW', PVOID, [
       'str16', 'uint32', 'uint32', PVOID, 'uint32', 'uint32', PVOID,
     ]),

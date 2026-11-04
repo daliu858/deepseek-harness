@@ -16,6 +16,8 @@ export const WAIT_TIMEOUT = 258
 export const CREATE_SUSPENDED = 0x4
 /** CreateProcess flag selecting a UTF-16 environment block. */
 export const CREATE_UNICODE_ENVIRONMENT = 0x400
+/** CreateProcess flag that allocates a headless console without a window. */
+export const CREATE_NO_WINDOW = 0x08000000
 /** GetStdHandle selector for standard input. */
 export const STD_INPUT_HANDLE = -10
 /** GetStdHandle selector for standard output. */
@@ -26,6 +28,8 @@ export const STD_ERROR_HANDLE = -12
 export const FORMAT_MESSAGE_FROM_SYSTEM = 0x00001000
 /** FormatMessage leaves insertion placeholders uninterpreted. */
 export const FORMAT_MESSAGE_IGNORE_INSERTS = 0x00000200
+/** Win32 code reporting that the caller is already attached to a console or lacks access. */
+export const ERROR_ACCESS_DENIED = 5
 /** Win32 code reporting a caller-provided buffer is too small. */
 export const ERROR_INSUFFICIENT_BUFFER = 122
 /** Win32 code reporting that the other pipe end closed. */

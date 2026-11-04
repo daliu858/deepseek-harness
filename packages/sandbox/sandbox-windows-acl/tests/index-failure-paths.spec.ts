@@ -175,6 +175,7 @@ function happyStubs(): HappyStubs {
     peekNamedPipe, readFile, waitForSingleObject, getExitCodeProcess, createJobObjectW,
     setInformationJobObject, assignProcessToJobObject, resumeThread, terminateProcess,
     getStdHandle,
+    getConsoleCP: vi.fn(() => 65001),
     localFree, closeHandle, getLastError, formatMessageW,
   })
   return {

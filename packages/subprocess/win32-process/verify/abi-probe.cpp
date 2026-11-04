@@ -19,6 +19,7 @@ int wmain()
   P(offsetof(PROCESS_INFORMATION, dwProcessId));
   P(CREATE_SUSPENDED);
   P(CREATE_UNICODE_ENVIRONMENT);
+  P(CREATE_NO_WINDOW);
   P(STARTF_USESTDHANDLES);
   P(STARTF_USESHOWWINDOW);
   P(SW_HIDE);
@@ -30,6 +31,7 @@ int wmain()
   P(STD_ERROR_HANDLE);
   P(FORMAT_MESSAGE_FROM_SYSTEM);
   P(FORMAT_MESSAGE_IGNORE_INSERTS);
+  P(ERROR_ACCESS_DENIED);
   P(ERROR_INSUFFICIENT_BUFFER);
   P(ERROR_BROKEN_PIPE);
   P(ERROR_NO_DATA);
@@ -46,11 +48,13 @@ int wmain()
   static_assert(sizeof(HANDLE) == 8, "HANDLE size");
   static_assert(CREATE_SUSPENDED == 0x4, "suspended process flag");
   static_assert(CREATE_UNICODE_ENVIRONMENT == 0x400, "Unicode environment flag");
+  static_assert(CREATE_NO_WINDOW == 0x08000000, "headless console process flag");
   static_assert(STARTF_USESTDHANDLES == 0x100, "std handles flag");
   static_assert(STARTF_USESHOWWINDOW == 0x1, "initial window visibility flag");
   static_assert(SW_HIDE == 0, "hidden window value");
   static_assert(HANDLE_FLAG_INHERIT == 0x1, "inherit flag");
   static_assert(WAIT_TIMEOUT == 258, "zero-time wait timeout");
+  static_assert(ERROR_ACCESS_DENIED == 5, "access denied error code");
   static_assert(sizeof(JOBOBJECT_BASIC_ACCOUNTING_INFORMATION) == 48, "job accounting size");
   static_assert(offsetof(JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, ActiveProcesses) == 40, "active process offset");
   static_assert(JobObjectBasicAccountingInformation == 1, "basic accounting class");

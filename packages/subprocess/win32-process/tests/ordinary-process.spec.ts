@@ -10,6 +10,7 @@ import {
   Win32Error,
 } from '../src/index.ts'
 import {
+  CREATE_NO_WINDOW,
   CREATE_SUSPENDED,
   CREATE_UNICODE_ENVIRONMENT,
   JOBOBJECT_BASIC_ACCOUNTING_ACTIVE_PROCESSES_OFFSET,
@@ -70,6 +71,11 @@ function api(overrides: Partial<CurrentTokenProcessBindings> = {}): CurrentToken
     closeHandle: vi.fn(() => 1),
     getLastError: vi.fn(() => 5),
     formatMessageW: vi.fn(() => 0),
+    setStdHandle: vi.fn(() => 1),
+    getConsoleCP: vi.fn(() => 65001),
+    attachConsole: vi.fn(() => 1),
+    setConsoleCtrlHandler: vi.fn(() => 1),
+    sleep: vi.fn(),
     ...overrides,
   } as CurrentTokenProcessBindings
 }
@@ -155,7 +161,7 @@ describe('ordinary Job process operations', () => {
       null,
       null,
       1,
-      CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
+      CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW,
       environment,
       'C:\\work',
       expect.anything(),

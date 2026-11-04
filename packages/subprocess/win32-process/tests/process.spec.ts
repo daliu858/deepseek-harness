@@ -6,7 +6,7 @@ import {
   spawnInheritedJobProcess,
   spawnPipedProcess,
 } from '../src/index.ts'
-import { CREATE_SUSPENDED } from '../src/abi.ts'
+import { CREATE_NO_WINDOW, CREATE_SUSPENDED, ERROR_ACCESS_DENIED, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE } from '../src/abi.ts'
 import { processInformationType, startupInfoType } from '../src/ffi.ts'
 import type { NativePtr, Win32ProcessBindings } from '../src/index.ts'
 
@@ -56,6 +56,11 @@ function inheritedApi(overrides: Partial<Win32ProcessBindings> = {}): {
     closeHandle: vi.fn((handle: NativePtr) => { events.push(`close:${handle}`); return 1 }),
     getLastError: vi.fn(() => 5),
     formatMessageW: vi.fn(() => 0),
+    setStdHandle: vi.fn(() => 1),
+    getConsoleCP: vi.fn(() => 65001),
+    attachConsole: vi.fn(() => 1),
+    setConsoleCtrlHandler: vi.fn(() => 1),
+    sleep: vi.fn(),
     ...overrides,
     createProcessAsUserW,
   } as unknown as Win32ProcessBindings
@@ -197,6 +202,171 @@ describe('spawnInheritedJobProcess', () => {
     expect(closeHandle).toHaveBeenCalledWith(60n)
   })
 
+  it('attaches a headless console and restores standard handles when the host has no console', () => {
+    let attempts = 0
+    const createProcessW = vi.fn((
+      _app: unknown, _line: unknown, _pa: unknown, _ta: unknown, _inherit: unknown,
+      _flags: unknown, _env: unknown, _cwd: unknown, _startup: unknown, info: NativePtr,
+    ) => {
+      koffi.encode(info, processInformationType(), {
+        hProcess: 80n,
+        hThread: 81n,
+        dwProcessId: 9999,
+        dwThreadId: 9998,
+      })
+      return 1
+    })
+    const attachConsole = vi.fn(() => {
+      attempts += 1
+      return attempts === 2 ? 1 : 0
+    })
+    const sleep = vi.fn()
+    const terminateProcess = vi.fn(() => 1)
+    const setStdHandle = vi.fn(() => 1)
+    const setConsoleCtrlHandler = vi.fn(() => 1)
+    const { api, events } = inheritedApi({
+      getConsoleCP: vi.fn(() => 0),
+      getLastError: vi.fn(() => 31),
+      createProcessW,
+      attachConsole,
+      sleep,
+      terminateProcess,
+      setStdHandle,
+      setConsoleCtrlHandler,
+    })
+    const child = spawnInheritedJobProcess(api, {
+      command: 'cmd.exe',
+      args: ['/c', 'exit', '0'],
+      cwd: 'C:\\work',
+      token,
+    })
+    expect(child).toEqual({ pid: 1234, process: 60n, job: 50n })
+    expect(createProcessW).toHaveBeenCalledWith(
+      expect.stringMatching(/\\System32\\cmd\.exe$/iu),
+      expect.stringMatching(/"[^"]*\\System32\\cmd\.exe" \/d \/q \/k$/iu),
+      null,
+      null,
+      0,
+      CREATE_NO_WINDOW,
+      null,
+      null,
+      expect.anything(),
+      expect.anything(),
+    )
+    expect(attachConsole).toHaveBeenCalledTimes(2)
+    expect(attachConsole).toHaveBeenCalledWith(9999)
+    expect(sleep).toHaveBeenCalledExactlyOnceWith(1)
+    expect(terminateProcess).toHaveBeenCalledWith(80n, 0)
+    expect(events).toContain('close:80')
+    expect(events).toContain('close:81')
+    expect(setStdHandle).toHaveBeenCalledWith(STD_INPUT_HANDLE, 110n)
+    expect(setStdHandle).toHaveBeenCalledWith(STD_OUTPUT_HANDLE, 111n)
+    expect(setStdHandle).toHaveBeenCalledWith(STD_ERROR_HANDLE, 112n)
+    expect(setConsoleCtrlHandler).toHaveBeenCalledWith(null, 1)
+  })
+
+  it('stops polling AttachConsole when ERROR_ACCESS_DENIED indicates an existing attachment', () => {
+    const attachConsole = vi.fn(() => 0)
+    const sleep = vi.fn()
+    const { api } = inheritedApi({
+      getConsoleCP: vi.fn(() => 0),
+      getLastError: vi.fn(() => ERROR_ACCESS_DENIED),
+      createProcessW: vi.fn((_app, _line, _pa, _ta, _inh, _fl, _env, _cwd, _si, info) => {
+        koffi.encode(info, processInformationType(), {
+          hProcess: 80n,
+          hThread: 81n,
+          dwProcessId: 9999,
+          dwThreadId: 9998,
+        })
+        return 1
+      }),
+      attachConsole,
+      sleep,
+    })
+    expect(spawnInheritedJobProcess(api, {
+      command: 'cmd.exe',
+      args: [],
+      cwd: 'C:\\work',
+      token,
+    })).toEqual({ pid: 1234, process: 60n, job: 50n })
+    expect(attachConsole).toHaveBeenCalledOnce()
+    expect(sleep).not.toHaveBeenCalled()
+  })
+
+  it('continues when headless console helper creation fails or handles are null', () => {
+    const savedSystemRoot = process.env.SystemRoot
+    Reflect.deleteProperty(process.env, 'SystemRoot')
+    try {
+      let nextPipe = 10n
+      const setStdHandle = vi.fn(() => 1)
+      const createProcessW = vi.fn((_app, _line, _pa, _ta, _inh, _fl, _env, _cwd, _si, info) => {
+        koffi.encode(info, processInformationType(), {
+          hProcess: 0n,
+          hThread: 0n,
+          dwProcessId: 9999,
+          dwThreadId: 0,
+        })
+        return 1
+      })
+      const api = {
+        createPipe: vi.fn((readSlot, writeSlot) => {
+          koffi.encode(readSlot, PVOID, nextPipe++)
+          koffi.encode(writeSlot, PVOID, nextPipe++)
+          return 1
+        }),
+        setHandleInformation: vi.fn(() => 1),
+        getConsoleCP: vi.fn(() => 0),
+        getStdHandle: vi.fn(() => 0n as NativePtr),
+        setStdHandle,
+        createProcessW,
+        attachConsole: vi.fn(() => 0),
+        getLastError: vi.fn(() => 31),
+        sleep: vi.fn(),
+        setConsoleCtrlHandler: vi.fn(() => 1),
+        createProcessAsUserW: vi.fn((_token, _app, _line, _pa, _ta, _inherit, _flags, _env, _cwd, _startup, info) => {
+          koffi.encode(info, processInformationType(), {
+            hProcess: 60n,
+            hThread: 61n,
+            dwProcessId: 1234,
+            dwThreadId: 5678,
+          })
+          return 1
+        }),
+        terminateProcess: vi.fn(() => 1),
+        closeHandle: vi.fn(() => 1),
+      } as unknown as Win32ProcessBindings
+      expect(spawnPipedProcess(api, {
+        command: 'cmd.exe',
+        args: [],
+        cwd: 'C:\\work',
+        token,
+      })).toMatchObject({ pid: 1234, process: 60n })
+      expect(createProcessW).toHaveBeenCalledWith(
+        'C:\\Windows\\System32\\cmd.exe',
+        '"C:\\Windows\\System32\\cmd.exe" /d /q /k',
+        null,
+        null,
+        0,
+        CREATE_NO_WINDOW,
+        null,
+        null,
+        expect.anything(),
+        expect.anything(),
+      )
+      expect(setStdHandle).not.toHaveBeenCalled()
+
+      createProcessW.mockReturnValueOnce(0)
+      expect(spawnPipedProcess(api, {
+        command: 'cmd.exe',
+        args: [],
+        cwd: 'C:\\work',
+        token,
+      })).toMatchObject({ pid: 1234, process: 60n })
+    } finally {
+      if (savedSystemRoot !== undefined) process.env.SystemRoot = savedSystemRoot
+    }
+  })
+
 })
 
 describe('wait and pipe cleanup', () => {
@@ -232,6 +402,7 @@ describe('wait and pipe cleanup', () => {
         return 1
       }),
       setHandleInformation: vi.fn(() => 1),
+      getConsoleCP: vi.fn(() => 65001),
       createProcessAsUserW: vi.fn((_token, _app, _line, _pa, _ta, _inherit, _flags, _env, _cwd, _startup, info) => {
         koffi.encode(info, processInformationType(), {
           hProcess: 60n,
